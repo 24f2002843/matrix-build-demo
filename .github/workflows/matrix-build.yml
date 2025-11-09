@@ -1,0 +1,136 @@
+name: Matrix Build with Artifacts
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  matrix-build:
+    name: Build for ${{ matrix.os }}-${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [18, 20, 22]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: darwin
+          - os: windows-latest
+            platform: win32
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Matrix build identifier step
+      id: matrix-identifier
+      run: |
+        echo "matrix-987e3c6: Building for ${{ matrix.os }} with Node.js ${{ matrix.node-version }}"
+        echo "Platform: ${{ matrix.platform }}"
+        echo "Build variant: ${{ matrix.os }}-node${{ matrix.node-version }}"
+    
+    - name: Generate build information
+      id: build-info
+      run: |
+        # Generate unique build metadata
+        BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        BUILD_HASH=$(git rev-parse --short HEAD)
+        
+        # Create build artifact content
+        cat > build-info.json << EOF
+        {
+          "buildId": "987e3c6",
+          "timestamp": "$BUILD_TIME",
+          "commitHash": "$BUILD_HASH",
+          "platform": {
+            "os": "${{ matrix.os }}",
+            "nodeVersion": "${{ matrix.node-version }}",
+            "platform": "${{ matrix.platform }}"
+          },
+          "matrixVariant": "${{ matrix.os }}-node${{ matrix.node-version }}"
+        }
+        EOF
+        
+        # Create a simple build output file
+        echo "Build successful for ${{ matrix.os }} with Node.js ${{ matrix.node-version }}" > build-output.txt
+        echo "Platform: ${{ matrix.platform }}" >> build-output.txt
+        echo "Build time: $BUILD_TIME" >> build-output.txt
+        echo "Commit: $BUILD_HASH" >> build-output.txt
+        echo "Matrix variant: ${{ matrix.os }}-node${{ matrix.node-version }}" >> build-output.txt
+        
+        # Display build info
+        cat build-info.json
+        echo "---"
+        cat build-output.txt
+    
+    - name: Create additional artifacts
+      run: |
+        # Create platform-specific artifacts
+        if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          echo "Linux build artifacts" > linux-specific.txt
+          echo "Compiled for x86_64" >> linux-specific.txt
+        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          echo "macOS build artifacts" > macos-specific.txt
+          echo "Compiled for arm64" >> macos-specific.txt
+        else
+          echo "Windows build artifacts" > windows-specific.txt
+          echo "Compiled for x64" >> windows-specific.txt
+        fi
+        
+        # Create version-specific configuration
+        echo "Node.js ${{ matrix.node-version }} configuration" > node-config-${{ matrix.node-version }}.txt
+        echo "ES version: ${{ matrix.node-version > 20 && 'ES2022' || 'ES2020' }}" >> node-config-${{ matrix.node-version }}.txt
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-987e3c6-${{ matrix.os }}-node${{ matrix.node-version }}
+        path: |
+          build-info.json
+          build-output.txt
+          *-specific.txt
+          node-config-*.txt
+        retention-days: 7
+    
+    - name: Verify artifact creation
+      run: |
+        echo "Artifacts created for build-987e3c6-${{ matrix.os }}-node${{ matrix.node-version }}"
+        echo "Files to be uploaded:"
+        ls -la
+
+  post-build:
+    name: Post-build Summary
+    runs-on: ubuntu-latest
+    needs: matrix-build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Display build summary
+      run: |
+        echo "=== Matrix Build Summary ==="
+        echo "Total matrix jobs: 9"
+        echo "Artifacts downloaded:"
+        find artifacts -name "*.json" -o -name "*.txt" | while read file; do
+          echo " - $file"
+          echo "   Content preview:"
+          head -5 "$file" | sed 's/^/     /'
+        done
