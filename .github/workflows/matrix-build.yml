@@ -1,73 +1,35 @@
-name: Matrix Build with Artifacts
+name: Matrix Build & Artifacts Demo
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Define a matrix with 3 variants
         node-version: [18, 20, 22]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
-      - name: matrix-987e3c6 - Build step
+      # This step includes the required dynamic identifier
+      - name: Build for Node ${{ matrix.node-version }} (matrix-c064f21)
         run: |
-          echo "matrix-987e3c6: Building for ${{ matrix.os }} with Node.js ${{ matrix.node-version }}"
+          echo "Simulating build for Node.js version ${{ matrix.node-version }}"
+          echo "This is the build output." > build_output.txt
+          echo "Identifier: matrix-c064f21" >> build_output.txt
 
-      - name: Create build artifact
-        # Use bash shell so the same script works cross-platform (Git Bash on windows runners).
-        # Use node to generate an ISO timestamp so it works on all platforms.
-        shell: bash
-        run: |
-          echo "Build Output for ${{ matrix.os }} - Node.js ${{ matrix.node-version }}" > build-output.txt
-          echo "Build ID: 987e3c6" >> build-output.txt
-          echo "Platform: ${{ matrix.os }}" >> build-output.txt
-          echo "Node Version: ${{ matrix.node-version }}" >> build-output.txt
-          # Use node (already installed by setup-node) to emit a consistent ISO timestamp across OSes
-          echo "Timestamp: $(node -e 'console.log(new Date().toISOString())')" >> build-output.txt
-          echo "Commit: ${{ github.sha }}" >> build-output.txt
-
-          # Create additional test files (ensure directories are created cross-platform)
-          mkdir -p dist
-          echo "Compiled binary for ${{ matrix.os }}" > dist/app-${{ matrix.os }}-v${{ matrix.node-version }}.bin
-          echo "{ \"node\": \"${{ matrix.node-version }}\", \"os\": \"${{ matrix.os }}\" }" > config-v${{ matrix.node-version }}.json
-
-          # Show created files for logs and validation
-          echo "Created files:"
-          ls -la || true
-          echo "--- build-output.txt content ---"
-          cat build-output.txt || true
-
-      - name: Upload build artifacts
+      # This step uploads an artifact with the required dynamic prefix
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          # Artifact name uses the required prefix
-          name: build-987e3c6-${{ matrix.os }}-node${{ matrix.node-version }}
-          path: |
-            build-output.txt
-            dist/
-            config-*.json
+          # Use the prefix and include the matrix variant in the name
+          name: build-c064f21-node-${{ matrix.node-version }}
+          path: build_output.txt
           retention-days: 7
-
-      - name: Verify files exist
-        shell: bash
-        run: |
-          echo "Checking if artifact files exist..."
-          ls -la || true
-          [ -f "build-output.txt" ] && echo "✓ build-output.txt exists" || echo "✗ build-output.txt missing"
-          [ -d "dist" ] && echo "✓ dist directory exists" || echo "✗ dist directory missing"
